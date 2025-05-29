@@ -463,9 +463,53 @@ async def transcribe_video(
             return JSONResponse(status_code=500, content={"error": str(e)})
 
 @app.post("/transcribe_audio")
-async def transcribe_audio(audio: UploadFile = File(...)):
-    # Placeholder: implement audio transcription logic
-    return {"transcript": "Audio transcription result here."}
+async def transcribe_audio(audio: Optional[UploadFile] = File(None)):
+    """Pipeline complet de transcription pour un fichier audio (uploadé ou enregistré)"""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        try:
+            if audio is None:
+                return JSONResponse(status_code=400, content={"error": "Aucun fichier audio fourni."})
+            
+            ext = os.path.splitext(audio.filename)[1].lower() if audio.filename else '.mp3'
+            audio_temp_path = os.path.join(temp_dir, f"uploaded_audio{ext}")
+
+            # 1. Sauvegarder le fichier audio temporairement
+            with open(audio_temp_path, 'wb') as out_file:
+                while True:
+                    chunk = await audio.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    out_file.write(chunk)
+
+            # 2. Convertir en MP3 si besoin
+            if ext != ".mp3":
+                converted_audio_path = os.path.join(temp_dir, "converted_audio.mp3")
+                convert_cmd = [
+                    "ffmpeg", "-y", "-i", audio_temp_path,
+                    "-acodec", "libmp3lame", "-ar", "44100", "-b:a", "192k",
+                    converted_audio_path
+                ]
+                subprocess.run(convert_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                audio_path = converted_audio_path
+            else:
+                audio_path = audio_temp_path
+
+            # 3. Segmenter
+            segments = segment_audio(audio_path)
+            if not segments:
+                return JSONResponse(status_code=400, content={"error": "Échec de la segmentation audio."})
+
+            # 4. Transcrire
+            print("Audio path:", audio_path)
+            print("Segments:", segments)
+            transcript_segments = transcribe_audio_segments(segments)
+            transcript = "\n".join(transcript_segments)
+
+            return {"transcript": transcript}
+
+        except Exception as e:
+            return JSONResponse(status_code=500, content={"error": str(e)})
+
 
 @app.post("/ocr_handwritten")
 async def ocr_handwritten(images: List[UploadFile] = File(...)):
