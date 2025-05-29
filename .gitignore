@@ -1,5 +1,7 @@
 # Python
 __pycache__/
+*.pyc
+__pycache__ 
 *.py[cod]
 *$py.class
 *.so
@@ -41,12 +43,14 @@ Thumbs.db
 .env.local
 
 # Fichiers de test audio
-audio_test.mp3
-audio_test.wav
+
 audio_test.ogg
 
 # Fichier de test temporaire
 test.py
 
-# Script local non versionné
-meeting_assistant.py
+logo.png
+
+node_modules/
+
+

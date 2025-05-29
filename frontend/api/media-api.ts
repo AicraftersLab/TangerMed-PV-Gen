@@ -68,7 +68,7 @@ export async function uploadVideo(data: { file?: File, driveUrl?: string }, onPr
 
 export async function uploadAudio(file: File, onProgress?: (progress: number) => void): Promise<string> {
   const formData = new FormData()
-  formData.append("file", file)
+  formData.append("audio", file)
 
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest()

@@ -505,7 +505,7 @@ async def transcribe_audio(audio: Optional[UploadFile] = File(None)):
             transcript_segments = transcribe_audio_segments(segments)
             transcript = "\n".join(transcript_segments)
 
-            return {"transcript": transcript}
+            return {"transcription": transcript}
 
         except Exception as e:
             return JSONResponse(status_code=500, content={"error": str(e)})

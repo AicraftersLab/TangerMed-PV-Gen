@@ -3,6 +3,7 @@ import { MeetingForm } from "@/components/meeting-form"
 import { MediaUploader } from "@/components/media-uploader"
 import { TranscriptionViewer } from "@/components/transcription-viewer"
 import { ProgressTracker } from "@/components/progress-tracker"
+// import  AudioRecorder  from "@/components/audio-recorder" 
 
 export default function HomePage() {
   return (
@@ -25,6 +26,7 @@ export default function HomePage() {
 
           {/* Media Upload */}
           <div className="lg:col-span-1">
+            {/* <AudioRecorder /> Commenting out or removing the standalone AudioRecorder */}
             <MediaUploader />
           </div>
 
