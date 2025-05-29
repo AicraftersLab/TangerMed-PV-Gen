@@ -83,7 +83,7 @@ cd TangerMed-pv-Gen
 1.  **Start the Backend Server:**
     Open a terminal, navigate to the `backend` directory, and run:
     ```bash
-    uvicorn app:app --reload --host 0.0.0.0 --port 8000
+    python run app.py
     ```
     The `--reload` flag will restart the server automatically on code changes.
 2.  **Start the Frontend Server:**
