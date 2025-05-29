@@ -7,6 +7,7 @@ genai.configure(api_key=os.environ.get("GOOGLE_API_KEY"))
 
 from fastapi import FastAPI, File, UploadFile, Form
 from fastapi.responses import JSONResponse, FileResponse
+from fastapi.middleware.cors import CORSMiddleware
 from typing import List, Optional
 import uvicorn
 import tempfile
@@ -21,6 +22,15 @@ import re
 import requests
 
 app = FastAPI(title="PV Generation API")
+
+# Configuration CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],  # URL de votre frontend Next.js
+    allow_credentials=True,
+    allow_methods=["*"],  # Autorise toutes les méthodes HTTP
+    allow_headers=["*"],  # Autorise tous les headers
+)
 
 # --- Helper Functions ---
 
@@ -175,26 +185,40 @@ def transcribe_audio_segments(segments, batch_size=10, timeout=30):
                     audio_bytes = f.read()
                 print(f"Segment {i+1} size: {len(audio_bytes)} bytes")
                 model = genai.GenerativeModel('gemini-2.0-flash')
-                def call_gemini():
-                    return model.generate_content([
+                
+                # Retry logic inside the segment processing
+                @retry_with_backoff
+                def call_gemini_with_retry():
+                    print(f"Attempting transcription for segment {i+1}...")
+                    response = model.generate_content([
                         "Transcrivez ce segment audio mot pour mot en français.",
                         {"mime_type": "audio/mp3", "data": audio_bytes}
                     ])
-                with concurrent.futures.ThreadPoolExecutor() as executor:
-                    future = executor.submit(call_gemini)
-                    try:
-                        response = future.result(timeout=timeout)
-                        if response.text:
-                            batch_transcript.append(response.text)
-                        else:
-                            batch_transcript.append(f"[Segment {i+1} non transcrit]")
-                    except concurrent.futures.TimeoutError:
-                        batch_transcript.append(f"[Segment {i+1} timeout]")
+                    print(f"Gemini response status for segment {i+1}: {response.candidates[0].finish_reason if response.candidates else 'No candidates'}")
+                    return response.text
+
+                transcript_text = call_gemini_with_retry()
+                
+                if transcript_text:
+                    batch_transcript.append(transcript_text)
+                else:
+                    print(f"Segment {i+1} returned no text from Gemini.")
+                    batch_transcript.append(f"[Segment {i+1} non transcrit ou vide]")
+                    
                 os.remove(segment_path)
+                    
+            except concurrent.futures.TimeoutError:
+                print(f"Segment {i+1} timed out during transcription.")
+                batch_transcript.append(f"[Segment {i+1} timeout]")
             except Exception as e:
+                print(f"Error transcribing segment {i+1}: {str(e)}") # Log the specific error
                 batch_transcript.append(f"[Segment {i+1} error: {str(e)}]")
-            time.sleep(random.uniform(1, 2))
+                # Decide if we should continue with other segments or break
+                # For now, we continue
+            time.sleep(random.uniform(1, 2)) # Add a small delay between segment calls
+            
         full_transcript.extend(batch_transcript)
+        
     return full_transcript
 
 def retry_with_backoff(func, max_retries=5, initial_delay=1):
@@ -375,10 +399,13 @@ async def transcribe_video(
     drive_url: Optional[str] = Form(None)
 ):
     """Full video transcription pipeline. Accepts file upload or Google Drive link."""
+    print(f"Received request - video: {video}, drive_url: {drive_url}")
+    
     with tempfile.TemporaryDirectory() as temp_dir:
         try:
             # 1. Handle file upload or Google Drive link
             if video is not None:
+                print(f"Processing uploaded video: {video.filename}")
                 ext = os.path.splitext(video.filename)[1].lower() if video.filename else '.mp4'
                 video_temp_path = os.path.join(temp_dir, f"uploaded_video{ext}")
                 with open(video_temp_path, 'wb') as out_file:
@@ -387,34 +414,52 @@ async def transcribe_video(
                         if not chunk:
                             break
                         out_file.write(chunk)
+                print(f"Video saved to: {video_temp_path}")
             elif drive_url:
+                print(f"Processing drive URL: {drive_url}")
                 video_temp_path = os.path.join(temp_dir, "downloaded_video.mp4")
                 ok, err = download_video_from_drive(drive_url, video_temp_path)
                 if not ok:
+                    print(f"Drive download failed: {err}")
                     return JSONResponse(status_code=400, content={"error": err})
             else:
+                print("No video file or drive_url provided")
                 return JSONResponse(status_code=400, content={"error": "No video file or drive_url provided."})
+            
             # 2. Verify video
+            print("Verifying video file...")
             valid, err = verify_video_file(video_temp_path)
             if not valid:
+                print(f"Video verification failed: {err}")
                 return JSONResponse(status_code=400, content={"error": err})
+            
             # 3. Extract audio
+            print("Extracting audio...")
             audio_path = os.path.join(temp_dir, "output_audio.mp3")
             ok, err = extract_audio_from_video(video_temp_path, audio_path)
             if not ok:
+                print(f"Audio extraction failed: {err}")
                 return JSONResponse(status_code=400, content={"error": err})
+            
             # 4. Segment audio
+            print("Segmenting audio...")
             segments = segment_audio(audio_path)
             if not segments:
+                print("Audio segmentation failed")
                 return JSONResponse(status_code=400, content={"error": "Audio segmentation failed."})
+            
             # 5. Transcribe segments
+            print("Transcribing segments...")
             print("Video temp path:", video_temp_path)
             print("Audio path:", audio_path)
-            print("Segments:", segments)
+            print("Number of segments:", len(segments))
             transcript_segments = transcribe_audio_segments(segments)
             transcript = "\n".join(transcript_segments)
+            print("Transcription completed successfully")
             return {"transcript": transcript}
+            
         except Exception as e:
+            print(f"Error in transcribe_video: {str(e)}")
             return JSONResponse(status_code=500, content={"error": str(e)})
 
 @app.post("/transcribe_audio")
