@@ -27,51 +27,11 @@ export function ImageUploader() {
 
       dispatch({ type: "SET_MEDIA_FILES", payload: { type: "images", files: imageFiles } })
 
-      // Process all files in one API call
-      try {
-        dispatch({ type: "SET_PROCESSING", payload: true })
-        // We need to adjust how progress is tracked for multiple files if needed in the future
-        // For now, a single progress for the entire upload will be shown
-        const results: OcrResponse = await uploadImage(imageFiles, (progress) => {
-          dispatch({ type: "SET_UPLOAD_PROGRESS", payload: { type: "ocr", progress } })
-        })
-
-        // Assuming results is an object { filename: { success: boolean, text: string } }
-        // We need to combine the text from all successful transcriptions
-        const combinedText = Object.values(results)
-          .filter(result => result.success)
-          .map(result => result.text)
-          .join("\n\n---\n\n"); // Join text with a separator
-
-        dispatch({ type: "SET_TRANSCRIPTION", payload: { type: "ocr", content: combinedText } })
-        
-        const failedFiles = Object.entries(results)
-            .filter(([filename, result]) => !result.success)
-            .map(([filename, result]) => `${filename}: ${result.error || 'Unknown error'}`);
-
-        if (failedFiles.length > 0) {
-            toast({
-                title: "Some images failed to process",
-                description: failedFiles.join("\n"),
-                variant: "destructive",
-                duration: 5000 // Show for a bit longer
-            });
-        } else {
-            toast({
-                title: "Images uploaded successfully",
-                description: "OCR processing completed for all images",
-            });
-        }
-
-      } catch (error) {
-        toast({
-          title: "Upload failed",
-          description: error instanceof Error ? error.message : "Failed to process image files",
-          variant: "destructive",
-        })
-      } finally {
-        dispatch({ type: "SET_PROCESSING", payload: false })
-      }
+      toast({
+        title: "Image files added",
+        description: "Image files are ready for PV generation.",
+        variant: "default",
+      });
     },
     [dispatch, toast],
   )

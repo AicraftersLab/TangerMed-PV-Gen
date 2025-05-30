@@ -5,7 +5,6 @@ import { useDropzone } from "react-dropzone"
 import { Card, CardContent } from "@/components/ui/card"
 import { Volume2, Upload } from "lucide-react"
 import { useApp } from "@/providers/app-provider"
-import { uploadAudio } from "@/api/media-api"
 import { useToast } from "@/hooks/use-toast"
 
 export function AudioUploader() {
@@ -27,28 +26,11 @@ export function AudioUploader() {
 
       dispatch({ type: "SET_MEDIA_FILES", payload: { type: "audio", files: audioFiles } })
 
-      for (const file of audioFiles) {
-        try {
-          dispatch({ type: "SET_PROCESSING", payload: true })
-          const transcription = await uploadAudio(file, (progress) => {
-            dispatch({ type: "SET_UPLOAD_PROGRESS", payload: { type: "audio", progress } })
-          })
-
-          dispatch({ type: "SET_TRANSCRIPTION", payload: { type: "audio", content: transcription } })
-          toast({
-            title: "Audio uploaded successfully",
-            description: "Transcription completed",
-          })
-        } catch (error) {
-          toast({
-            title: "Upload failed",
-            description: "Failed to upload audio file",
-            variant: "destructive",
-          })
-        } finally {
-          dispatch({ type: "SET_PROCESSING", payload: false })
-        }
-      }
+      toast({
+        title: "Audio files added",
+        description: "Audio files are ready for PV generation.",
+        variant: "default",
+      });
     },
     [dispatch, toast],
   )

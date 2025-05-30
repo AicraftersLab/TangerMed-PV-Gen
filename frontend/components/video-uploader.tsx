@@ -7,43 +7,33 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Video, Upload, Link } from "lucide-react"
 import { useApp } from "@/providers/app-provider"
-import { uploadVideo } from "@/api/media-api"
 import { useToast } from "@/hooks/use-toast"
 
 export function VideoUploader() {
   const { dispatch } = useApp()
   const { toast } = useToast()
   const [driveUrl, setDriveUrl] = useState("")
-  const [isUploading, setIsUploading] = useState(false)
 
   const handleUpload = useCallback(
     async (data: { file?: File, driveUrl?: string }) => {
-      setIsUploading(true)
       try {
-        dispatch({ type: "SET_PROCESSING", payload: true })
-        dispatch({ type: "SET_TRANSCRIPTION", payload: { type: "video", content: "" } })
-        dispatch({ type: "SET_UPLOAD_PROGRESS", payload: { type: "video", progress: 0 } })
-
-        const transcription = await uploadVideo(data, (progress) => {
-          dispatch({ type: "SET_UPLOAD_PROGRESS", payload: { type: "video", progress } })
-        })
-
-        dispatch({ type: "SET_TRANSCRIPTION", payload: { type: "video", content: transcription } })
-        toast({
-          title: data.file ? "Video uploaded successfully" : "Video processing started",
-          description: data.file ? "Transcription completed" : "Processing video from Drive URL",
-        })
-        setDriveUrl("")
+        if (data.file) {
+          dispatch({ type: "SET_MEDIA_FILES", payload: { type: "video", files: [data.file] } })
+        } else if (data.driveUrl) {
+          dispatch({ type: "SET_MEETING_DATA", payload: { googleDriveUrl: data.driveUrl } })
+          setDriveUrl("")
+          toast({
+            title: "URL ajoutée",
+            description: "L'URL Google Drive a été enregistrée pour traitement.",
+            variant: "default",
+          })
+        }
       } catch (error) {
         toast({
-          title: "Upload failed",
-          description: error instanceof Error ? error.message : "Failed to process video",
+          title: "Processing setup failed",
+          description: error instanceof Error ? error.message : "Failed to prepare video for processing",
           variant: "destructive",
         })
-        if (data.driveUrl && data.driveUrl !== '') dispatch({ type: "SET_UPLOAD_PROGRESS", payload: { type: "video", progress: 0 } })
-      } finally {
-        dispatch({ type: "SET_PROCESSING", payload: false })
-        setIsUploading(false)
       }
     },
     [dispatch, toast]
@@ -63,10 +53,9 @@ export function VideoUploader() {
       }
 
       const file = videoFiles[0]
-      dispatch({ type: "SET_MEDIA_FILES", payload: { type: "video", files: [file] } })
       handleUpload({ file })
     },
-    [dispatch, toast, handleUpload]
+    [toast, handleUpload]
   )
 
   const handleUrlUpload = async () => {
@@ -78,7 +67,6 @@ export function VideoUploader() {
       })
       return
     }
-    dispatch({ type: "SET_MEDIA_FILES", payload: { type: "video", files: [] } })
     handleUpload({ driveUrl })
   }
 
@@ -117,9 +105,8 @@ export function VideoUploader() {
               value={driveUrl}
               onChange={(e) => setDriveUrl(e.target.value)}
               className="flex-1"
-              disabled={isUploading}
             />
-            <Button onClick={handleUrlUpload} disabled={isUploading}>Upload URL</Button>
+            <Button onClick={handleUrlUpload}>Upload URL</Button>
           </div>
         </CardContent>
       </Card>
