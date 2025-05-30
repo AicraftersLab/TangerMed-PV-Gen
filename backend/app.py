@@ -594,7 +594,10 @@ RC N°45349 TANGER – ICE : 000053443000022
         DU {meeting_info.get('date', 'N/A')}
         À {meeting_info.get('time', 'N/A')} heures.
 
-        En l'an {meeting_info.get('year', 'N/A')} (a ecrire en lettre) , Le {meeting_info.get('date', 'N/A')} (a ecrire en lettre) , à {meeting_info.get('time', 'N/A')} (a ecrire en lettre) heures, les membres du Conseil d'Administration de Tanger Med Port Authority S.A. par abréviation, « TMPA » se sont réunis en [Lieu/Type de présence, e.g., présentiel au bureau de TMSA à Rabat et par visioconférence] conformément aux dispositions réglementaires, sur convocation et sous la présidence de [Nom du Président].
+        En l’an {meeting_info.get('year', 'N/A')} à écrire en toutes lettres pour donner comme cet example : L’An Deux Mille Vingt-Cinq, ,  
+        le {meeting_info.get('date', 'N/A')} à écrire en toutes lettres pour donner comme cet example : Le Dix Février,  
+        à {meeting_info.get('time', 'N/A')} à écrire en toutes lettres pour donner comme cet example : À 15 heures.  
+        les membres du Conseil d'Administration de Tanger Med Port Authority S.A. par abréviation, « TMPA » se sont réunis en [Lieu/Type de présence, e.g., présentiel au bureau de TMSA à Rabat et par visioconférence] conformément aux dispositions réglementaires, sur convocation et sous la présidence de [Nom du Président].
 
         Monsieur [Nom du Président] préside la réunion, en sa qualité de Président du Conseil d'Administration.
 
