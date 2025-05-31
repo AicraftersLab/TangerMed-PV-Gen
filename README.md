@@ -4,7 +4,8 @@ This project is a web application designed to automate the generation of meeting
 
 ## Features
 
-*   **Video Transcription:** Transcribe spoken content from video files or Google Drive video URLs.
+*   **Emailing of Generated PV:** Automatically send the generated meeting minutes as an email attachment.
+*   **Video Transcription:** Transcribe spoken content from video files.
 *   **Audio Transcription:** Transcribe spoken content from audio files.
 *   **OCR for Handwritten Notes:** Extract text from images containing handwritten notes.
 *   **PDF Extraction:** Extract detailed content and identify acronyms from PDF documents.
@@ -12,7 +13,7 @@ This project is a web application designed to automate the generation of meeting
 
 ## Technologies Used
 
-### Backend
+### Backend (FastAPI Python API)
 
 *   **Framework:** FastAPI
 *   **Language:** Python
@@ -23,6 +24,13 @@ This project is a web application designed to automate the generation of meeting
 *   **Environment Management:** `python-dotenv`
 *   **Web Server:** Uvicorn
 *   **Dependency Management:** `pip`
+
+### Backend (Vercel Email API)
+
+*   **Framework:** Express.js
+*   **Language:** JavaScript/Node.js
+*   **Email Sending:** Nodemailer
+*   **Multipart Form Data Handling:** Multer
 
 ### Frontend
 
@@ -97,10 +105,10 @@ Open your web browser and go to the frontend address (e.g., `http://localhost:30
 
 ## Backend Documentation (backend/app.py)
 
-The backend is built with FastAPI and exposes several endpoints for media processing and PV generation. Files uploaded or downloaded from URLs are processed using **temporary directories** and are not stored persistently.
+The backend is built with FastAPI and exposes several endpoints for media processing and PV generation. Files uploaded are processed using **temporary directories** and are not stored persistently.
 
 *   **`/transcribe_video` (POST)**
-    *   **Description:** Transcribes the audio content of a video. Handles both file uploads and Google Drive URLs.
+    *   **Description:** Transcribes the audio content of a video file.
     *   **Input:** `multipart/form-data`
         *   `video`: (Optional) Video file (`UploadFile`).
         *   `drive_url`: (Optional) Google Drive sharing URL (string).
@@ -136,35 +144,44 @@ The backend is built with FastAPI and exposes several endpoints for media proces
         *   `filename`: The name of the uploaded PDF file (string).
 
 *   **`/generate_pv` (POST)**
-    *   **Description:** Generates meeting minutes (PV) based on the provided transcriptions and meeting information.
+    *   **Description:** Generates meeting minutes (PV) based on the provided data. The generated PV is then sent as an email attachment.
     *   **Input:** `application/json`
-        *   `video_transcript`: (Optional) Video transcription text (string).
-        *   `audio_transcript`: (Optional) Audio transcription text (string).
-        *   `handwritten_text`: (Optional) Extracted OCR text (string).
-        *   `pdf_summary`: (Optional) Extracted PDF summary text (string).
-        *   `meeting_info`: (Optional) Additional meeting details (string).
-        *   *Note: The structure of this input might need refinement based on the actual PV generation logic.*
-    *   **Processing:** (Placeholder - implementation needed)
-    *   **Output:** `application/json` (Currently returns a placeholder JSON, expected to return the generated PV, possibly as a downloadable file/blob).
-        *   `pv`: Placeholder text (string).
+        *   `meetingData`: An object containing meeting details including `title`, `date`, `location`, and `email`.
+        *   `mediaFiles`: An object containing arrays of `File` objects for `video`, `audio`, `images`, and `pdfs`.
+    *   **Processing:** Uses Gemini to process uploaded media and generate the PV content. The generated content is then formatted into a `.docx` file and sent via the Vercel email API.
+    *   **Output:** Returns a success or error status for the generation and email sending process.
+
+## Vercel Email API Documentation (/api/send-email)
+
+This API endpoint handles sending emails with attachments.
+
+*   **`/api/send-email` (POST)**
+    *   **Description:** Sends an email with the generated PV as an attachment.
+    *   **Input:** `multipart/form-data`
+        *   `to`: Recipient email address (string).
+        *   `subject`: Email subject (string).
+        *   `message`: Email body text (string).
+        *   `isHtml`: Boolean string indicating if the message is HTML ('true' or 'false').
+        *   `attachments`: The PV file as a Blob.
+    *   **Processing:** Uses Nodemailer to send the email with the provided details and attachment. Requires `GMAIL_USER` and `GMAIL_PASS` environment variables to be configured.
+    *   **Output:** JSON indicating success or failure.
 
 ## Frontend Documentation
 
-The frontend is a Next.js application using TypeScript, Tailwind CSS, and Shadcn UI components. It interacts with the backend API to upload media, view transcriptions/extractions, and generate the PV.
+The frontend is a Next.js application using TypeScript, Tailwind CSS, and Shadcn UI components. It interacts with the backend API to upload media and initiate PV generation and emailing.
 
 *   **Framework:** Next.js (App Router)
 *   **UI Components:** Located in `components/ui/` (from Shadcn UI) and `components/` (custom components).
-*   **API Calls:** Handled in `api/media-api.ts`. This file contains functions for interacting with the backend endpoints (`uploadVideo`, `uploadAudio`, `uploadImage`, `uploadPDF`, `generatePV`). It manages FormData creation, XMLHttpRequest for progress tracking, and fetch for JSON/Blob responses.
-*   **State Management:** Application state (including uploaded files, processing status, upload progress, and transcriptions) is managed using a custom provider (`providers/app-provider.tsx`) and accessed via the `useApp` hook. Actions are dispatched to update the state.
+*   **API Calls:** Handled in `api/media-api.ts` and direct `fetch` calls for the email API. This file contains functions for interacting with the backend endpoints (`generatePV`). It manages FormData creation and fetch for responses.
+*   **State Management:** Application state (including uploaded files, processing status, and meeting data) is managed using a custom provider (`providers/app-provider.tsx`) and accessed via the `useApp` hook. Actions are dispatched to update the state.
 *   **Key Components:**
-    *   `components/video-uploader.tsx`: Handles video file drag-and-drop and Google Drive URL input/upload.
-    *   `components/audio-uploader.tsx`: Handles audio file drag-and-drop upload.
-    *   `components/image-uploader.tsx`: Handles image file drag-and-drop upload (supports multiple files).
-    *   `components/pdf-uploader.tsx`: Handles PDF file drag-and-drop upload (currently processes only the first file).
-    *   `components/transcription-viewer.tsx`: Displays the transcribed/extracted text content for each media type and allows editing/saving.
-    *   `components/progress-tracker.tsx`: Visualizes the upload progress for each media type.
-    *   `components/meeting-form.tsx`: Component likely used for entering meeting details (currently placeholder in backend).
-    *   `components/pv-generator.tsx`: Component for initiating PV generation based on collected data and selecting templates.
-*   **Routing:** Handled by Next.js App Router (`app/` directory). The main page is `app/page.tsx`.
+    *   `components/video-uploader.tsx`: Handles video file drag-and-drop. Displays uploaded file name.
+    *   `components/audio-uploader.tsx`: Handles audio file drag-and-drop upload. Displays uploaded file name.
+    *   `components/image-uploader.tsx`: Handles image file drag-and-drop upload (supports multiple files). Displays uploaded file names.
+    *   `components/pdf-uploader.tsx`: Handles PDF file drag-and-drop upload (supports multiple files). Displays uploaded file names.
+    *   `components/progress-tracker.tsx`: Displays the count of uploaded files for each media type.
+    *   `components/meeting-form.tsx`: Component for entering meeting details (title, date, location, email).
+    *   `components/pv-generator.tsx`: Component for initiating PV generation and the email sending process.
+*   **Routing:** Handled by Next.js App Router (`app/` directory). The main page is `app/page.tsx`, and the PV generation display is in `app/pv-generator/page.tsx`.
 *   **Styling:** Global styles in `app/globals.css`, component styling using Tailwind CSS utility classes.
 

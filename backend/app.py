@@ -821,7 +821,7 @@ async def transcribe_audio(audio: Optional[UploadFile] = File(None)):
 
 @app.post("/ocr_handwritten")
 async def ocr_handwritten(images: List[UploadFile] = File(...)):
-    """Transcrit le texte manuscrit à partir d'une ou plusieurs images."""
+    """Transcrit le texte manuscrit à partir d'une ou bien plusieurs images."""
     try:
         results = {}
         for image in images:
