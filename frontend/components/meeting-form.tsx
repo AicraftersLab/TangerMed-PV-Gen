@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useApp } from "@/providers/app-provider"
 import { useState } from "react"
 import { X, Plus } from "lucide-react"
+import { useToast } from "@/hooks/use-toast"
 
 interface MeetingFormData {
   title: string
@@ -22,6 +23,7 @@ interface MeetingFormData {
 
 export function MeetingForm() {
   const { state, dispatch } = useApp()
+  const { toast } = useToast()
   const [participants, setParticipants] = useState<string[]>(state.meetingData.participants)
   const [newParticipant, setNewParticipant] = useState("")
 
@@ -33,6 +35,11 @@ export function MeetingForm() {
     dispatch({
       type: "SET_MEETING_DATA",
       payload: { ...data, participants },
+    })
+    toast({
+      title: "Meeting Details Saved",
+      description: "Meeting information has been updated.",
+      variant: "default",
     })
   }
 

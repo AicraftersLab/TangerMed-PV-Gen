@@ -1,10 +1,44 @@
+"use client"
+
+import { useRouter } from "next/navigation"
 import { Navbar } from "@/components/navbar"
 import { MeetingForm } from "@/components/meeting-form"
 import { MediaUploader } from "@/components/media-uploader"
-import { TranscriptionViewer } from "@/components/transcription-viewer"
 import { ProgressTracker } from "@/components/progress-tracker"
+import { TranscriptionViewer } from "@/components/transcription-viewer"
+import { Button } from "@/components/ui/button"
+import { useApp } from "@/providers/app-provider"
+import { useToast } from "@/hooks/use-toast"
+import { FileText } from "lucide-react"
 
-export default function HomePage() {
+export default function Home() {
+  const router = useRouter()
+  const { state } = useApp()
+  const { toast } = useToast()
+
+  const handleGeneratePV = () => {
+    if (!state.meetingData.title) {
+      toast({
+        title: "Données de réunion incomplètes",
+        description: "Veuillez remplir le formulaire de réunion d'abord",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if ((!state.mediaFiles.video || state.mediaFiles.video.length === 0) && 
+        (!state.mediaFiles.audio || state.mediaFiles.audio.length === 0)) {
+      toast({
+        title: "Fichiers médias manquants",
+        description: "Veuillez télécharger au moins un fichier vidéo ou audio",
+        variant: "destructive",
+      })
+      return
+    }
+
+    router.push("/pv-generator")
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
@@ -17,22 +51,26 @@ export default function HomePage() {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Meeting Form */}
-          <div className="lg:col-span-1">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <div className="space-y-8">
             <MeetingForm />
-          </div>
-
-          {/* Media Upload */}
-          <div className="lg:col-span-1">
             <MediaUploader />
           </div>
-
-          {/* Progress & Transcription */}
-          <div className="lg:col-span-1 space-y-6">
+          <div className="space-y-8">
             <ProgressTracker />
             <TranscriptionViewer />
           </div>
+        </div>
+
+        <div className="mt-8 flex justify-center">
+          <Button 
+            onClick={handleGeneratePV}
+            size="lg"
+            className="w-full max-w-md"
+          >
+            <FileText className="h-5 w-5 mr-2" />
+            Générer le PV
+          </Button>
         </div>
       </main>
     </div>

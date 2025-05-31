@@ -1,19 +1,23 @@
-import { Navbar } from "@/components/navbar"
+"use client"
+
 import { PVGenerator } from "@/components/pv-generator"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { FileText } from "lucide-react"
 
 export default function PVGeneratorPage() {
   return (
-    <div className="min-h-screen bg-background">
-      <Navbar />
-
-      <main className="container mx-auto px-4 py-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-2">PV Generator</h1>
-          <p className="text-muted-foreground">Generate professional meeting minutes from your transcriptions</p>
-        </div>
-
-        <PVGenerator />
-      </main>
+    <div className="container mx-auto py-8">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <FileText className="h-5 w-5" />
+            Génération du Procès-Verbal
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <PVGenerator />
+        </CardContent>
+      </Card>
     </div>
   )
 }

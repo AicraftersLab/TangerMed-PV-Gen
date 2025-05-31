@@ -5,6 +5,7 @@ import { VideoUploader } from "./video-uploader"
 import { AudioUploader } from "./audio-uploader"
 import { ImageUploader } from "./image-uploader"
 import { PDFUploader } from "./pdf-uploader"
+import AudioRecorder from "./audio-recorder"
 
 export function MediaUploader() {
   return (
@@ -15,6 +16,7 @@ export function MediaUploader() {
       <CardContent className="space-y-6">
         <VideoUploader />
         <AudioUploader />
+        <AudioRecorder />
         <ImageUploader />
         <PDFUploader />
       </CardContent>
