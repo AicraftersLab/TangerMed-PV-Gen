@@ -4,8 +4,6 @@ import { useRouter } from "next/navigation"
 import { Navbar } from "@/components/navbar"
 import { MeetingForm } from "@/components/meeting-form"
 import { MediaUploader } from "@/components/media-uploader"
-import { ProgressTracker } from "@/components/progress-tracker"
-import { TranscriptionViewer } from "@/components/transcription-viewer"
 import { Button } from "@/components/ui/button"
 import { useApp } from "@/providers/app-provider"
 import { useToast } from "@/hooks/use-toast"
@@ -51,26 +49,24 @@ export default function Home() {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          <div className="space-y-8">
+        {/* Centralized layout */}
+        <div className="flex flex-col items-center space-y-8 max-w-2xl mx-auto">
+          <div className="w-full">
             <MeetingForm />
+          </div>
+          <div className="w-full">
             <MediaUploader />
           </div>
-          <div className="space-y-8">
-            <ProgressTracker />
-            <TranscriptionViewer />
+          <div className="w-full mt-8 flex justify-center">
+            <Button 
+              onClick={handleGeneratePV}
+              size="lg"
+              className="w-full max-w-md"
+            >
+              <FileText className="h-5 w-5 mr-2" />
+              Prêt à Générer le PV
+            </Button>
           </div>
-        </div>
-
-        <div className="mt-8 flex justify-center">
-          <Button 
-            onClick={handleGeneratePV}
-            size="lg"
-            className="w-full max-w-md"
-          >
-            <FileText className="h-5 w-5 mr-2" />
-            Générer le PV
-          </Button>
         </div>
       </main>
     </div>

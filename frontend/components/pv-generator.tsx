@@ -26,6 +26,15 @@ export function PVGenerator() {
       return
     }
 
+    if (!state.meetingData.email) {
+      toast({
+        title: "Email manquant",
+        description: "Veuillez fournir une adresse email valide",
+        variant: "destructive",
+      })
+      return
+    }
+
     if ((!state.mediaFiles.video || state.mediaFiles.video.length === 0) && 
         (!state.mediaFiles.audio || state.mediaFiles.audio.length === 0)) {
       toast({
@@ -62,9 +71,27 @@ export function PVGenerator() {
 
       if (result instanceof Blob) {
         setGeneratedFile(result)
+        
+        // Envoyer le PV par email
+        const formData = new FormData()
+        formData.append('to', state.meetingData.email)
+        formData.append('subject', `PV de réunion - ${state.meetingData.title}`)
+        formData.append('message', `Bonjour,\n\nSuite à votre utilisation de notre plateforme de génération de procès-verbaux, nous vous informons que le document a été généré avec succès.\n\nCordialement,\nL'équipe AI Crafters`)
+        formData.append('isHtml', 'false')
+        formData.append('attachments', result, `PV_${state.meetingData.date.replace(/\//g, '_').replace(/-/g, '_')}.docx`)
+
+        const emailResponse = await fetch('https://y-hfsdu2g7u-hazizensa-1599s-projects.vercel.app/api/send-email', {
+          method: 'POST',
+          body: formData
+        })
+
+        if (!emailResponse.ok) {
+          throw new Error('Failed to send email')
+        }
+
         toast({
-          title: "PV généré avec succès",
-          description: "Vous pouvez maintenant télécharger le fichier",
+          title: "PV généré et envoyé",
+          description: "Le PV a été généré et envoyé à votre adresse email.",
           variant: "default",
         })
       } else {

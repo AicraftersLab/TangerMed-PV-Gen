@@ -5,11 +5,10 @@ import { useDropzone } from "react-dropzone"
 import { Card, CardContent } from "@/components/ui/card"
 import { ImageIcon, Upload } from "lucide-react"
 import { useApp } from "@/providers/app-provider"
-import { uploadImage, OcrResponse } from "@/api/media-api"
 import { useToast } from "@/hooks/use-toast"
 
 export function ImageUploader() {
-  const { dispatch } = useApp()
+  const { dispatch, state } = useApp()
   const { toast } = useToast()
 
   const onDrop = useCallback(
@@ -60,6 +59,25 @@ export function ImageUploader() {
             </p>
             <p className="text-xs text-muted-foreground mt-1">Supports: .jpg, .png, .jpeg, .bmp, .tiff</p>
           </div>
+
+          {state.mediaFiles.images && state.mediaFiles.images.length > 0 && (
+            <div className="p-2 bg-muted/50 border-t text-sm text-muted-foreground">
+              <p className="font-medium mb-1">Uploaded:</p>
+              {state.mediaFiles.images.map((file, index) => (
+                <div key={index} className="flex items-center justify-between">
+                  <p className="text-xs truncate">{file.name}</p>
+                  <button 
+                    onClick={() => dispatch({ type: "REMOVE_MEDIA_FILE", payload: { type: "images", file: file } })}
+                    className="ml-2 text-red-500 hover:text-red-700 text-xs"
+                    aria-label={`Remove ${file.name}`}
+                  >
+                    &#x2716;
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
         </CardContent>
       </Card>
     </div>

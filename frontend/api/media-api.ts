@@ -19,6 +19,7 @@ export async function generatePV(data: {
     participants: string[];
     type: string;
     googleDriveUrl?: string;
+    email: string;
   };
   mediaFiles: {
     video?: File[];

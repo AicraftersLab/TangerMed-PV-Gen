@@ -17,8 +17,8 @@ interface MeetingFormData {
   date: string
   time: string
   location: string
-  type: string
-  googleDriveUrl?: string
+  participants: string[]
+  email: string
 }
 
 export function MeetingForm() {
@@ -93,6 +93,22 @@ export function MeetingForm() {
           </div>
 
           <div>
+            <Label htmlFor="email">Email</Label>
+            <Input 
+              id="email" 
+              type="email" 
+              {...register("email", { 
+                required: true,
+                pattern: {
+                  value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
+                  message: "Invalid email address"
+                }
+              })} 
+              placeholder="Enter your email address" 
+            />
+          </div>
+
+          <div>
             <Label>Participants</Label>
             <div className="flex gap-2 mb-2">
               <Input
@@ -113,27 +129,6 @@ export function MeetingForm() {
                 </Badge>
               ))}
             </div>
-          </div>
-
-          <div>
-            <Label htmlFor="type">Meeting Type</Label>
-            <Select onValueChange={(value) => setValue("type", value)}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select meeting type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="board">Board Meeting</SelectItem>
-                <SelectItem value="team">Team Meeting</SelectItem>
-                <SelectItem value="client">Client Meeting</SelectItem>
-                <SelectItem value="project">Project Review</SelectItem>
-                <SelectItem value="other">Other</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div>
-            <Label htmlFor="googleDriveUrl">Google Drive URL (Optional)</Label>
-            <Input id="googleDriveUrl" {...register("googleDriveUrl")} placeholder="https://drive.google.com/..." />
           </div>
 
           <Button type="submit" className="w-full">

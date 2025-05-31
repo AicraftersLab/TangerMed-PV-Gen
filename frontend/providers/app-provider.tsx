@@ -12,6 +12,7 @@ interface MeetingData {
   participants: string[]
   type: string
   googleDriveUrl?: string
+  email: string
 }
 
 interface MediaFiles {
@@ -37,11 +38,21 @@ interface AppState {
 }
 
 type AppAction =
-  | { type: "SET_MEETING_DATA"; payload: Partial<MeetingData> }
+  | { type: "SET_MEETING_DATA"; payload: {
+      title?: string;
+      date?: string;
+      time?: string;
+      location?: string;
+      participants?: string[];
+      type?: string;
+      googleDriveUrl?: string;
+      email?: string;
+    } }
   | { type: "SET_MEDIA_FILES"; payload: { type: keyof MediaFiles; files: File[] } }
   | { type: "SET_TRANSCRIPTION"; payload: { type: keyof TranscriptionData; content: string } }
   | { type: "SET_UPLOAD_PROGRESS"; payload: { type: string; progress: number } }
   | { type: "SET_PROCESSING"; payload: boolean }
+  | { type: "REMOVE_MEDIA_FILE"; payload: { type: keyof MediaFiles; file: File } }
 
 const initialState: AppState = {
   meetingData: {
@@ -51,6 +62,8 @@ const initialState: AppState = {
     location: "",
     participants: [],
     type: "",
+    email: "",
+    googleDriveUrl: undefined,
   },
   mediaFiles: {},
   transcriptions: {},
@@ -90,6 +103,17 @@ function appReducer(state: AppState, action: AppAction): AppState {
         ...state,
         isProcessing: action.payload,
       }
+    case "REMOVE_MEDIA_FILE":
+      const filesOfType = state.mediaFiles[action.payload.type];
+      if (!filesOfType) {
+        return state; // No files of this type to remove
+      }
+      // Filter out the file to be removed
+      const updatedFiles = filesOfType.filter(file => file !== action.payload.file);
+      return {
+        ...state,
+        mediaFiles: { ...state.mediaFiles, [action.payload.type]: updatedFiles },
+      };
     default:
       return state
   }

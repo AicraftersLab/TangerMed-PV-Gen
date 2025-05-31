@@ -23,13 +23,6 @@ export function Navbar() {
               <span>Home</span>
             </Link>
             <Link
-              href="/transcription"
-              className="flex items-center space-x-2 text-sm font-medium hover:text-primary transition-colors"
-            >
-              <FileAudio className="h-4 w-4" />
-              <span>Transcription</span>
-            </Link>
-            <Link
               href="/pv-generator"
               className="flex items-center space-x-2 text-sm font-medium hover:text-primary transition-colors"
             >
