@@ -405,16 +405,18 @@ async def transcribe_video(
         try:
             # 1. Handle file upload or Google Drive link
             if video is not None:
-                print(f"Processing uploaded video: {video.filename}")
+                print(f"Processing uploaded video: {video.filename}, size: {video.size} bytes")
                 ext = os.path.splitext(video.filename)[1].lower() if video.filename else '.mp4'
                 video_temp_path = os.path.join(temp_dir, f"uploaded_video{ext}")
+                written_size = 0
                 with open(video_temp_path, 'wb') as out_file:
                     while True:
                         chunk = await video.read(1024 * 1024)
                         if not chunk:
                             break
                         out_file.write(chunk)
-                print(f"Video saved to: {video_temp_path}")
+                        written_size += len(chunk)
+                print(f"Video saved to: {video_temp_path}, written size: {written_size} bytes")
             elif drive_url:
                 print(f"Processing drive URL: {drive_url}")
                 video_temp_path = os.path.join(temp_dir, "downloaded_video.mp4")
