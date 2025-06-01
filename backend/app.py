@@ -675,6 +675,9 @@ RC N°45349 TANGER – ICE : 000053443000022
         - Ne pas insérer de titre vide.
         - Ne pas écrire de phrase du type “Aucune information disponible”.
         - Supprimer la section entière du PV final.
+        13. ⚠️ Si un placeholder comme [Nom du Président], [Nom du Secrétaire], [Titre du point], etc. ne peut pas être remplacé par une donnée réelle du contenu traité, alors :
+        - Supprimer toute la phrase contenant ce placeholder.
+        -  Ne pas afficher le placeholder dans le texte final.
                 """
 
         model = genai.GenerativeModel('gemini-2.0-flash')
