@@ -594,12 +594,29 @@ RC N°45349 TANGER – ICE : 000053443000022
         DU {meeting_info.get('date', 'N/A')}
         À {meeting_info.get('time', 'N/A')} heures.
 
-        En l’an {meeting_info.get('year', 'N/A')} à écrire en toutes lettres pour donner comme cet example : L’An Deux Mille Vingt-Cinq, ,  
+        En  {meeting_info.get('year', 'N/A')} à écrire en toutes lettres pour donner comme cet example : L’An Deux Mille Vingt-Cinq, ,  
         le {meeting_info.get('date', 'N/A')} à écrire en toutes lettres pour donner comme cet example : Le Dix Février,  
         à {meeting_info.get('time', 'N/A')} à écrire en toutes lettres pour donner comme cet example : À 15 heures.  
-        les membres du Conseil d'Administration de Tanger Med Port Authority S.A. par abréviation, « TMPA » se sont réunis en [Lieu/Type de présence, e.g., présentiel au bureau de TMSA à Rabat et par visioconférence] conformément aux dispositions réglementaires, sur convocation et sous la présidence de [Nom du Président].
 
-        Monsieur [Nom du Président] préside la réunion, en sa qualité de Président du Conseil d'Administration.
+        Les membres du Conseil d’Administration de Tanger Med Port Authority S.A, par abréviation, 
+        « TMPA » se sont réunis en Conseil d’Administration en présentiel au bureau de TMSA à 
+        Rabat et par visioconférence conformément aux dispositions réglementaires, sur convocation 
+        et sous la présidence de [Nom du Président si bien cité dans le contenu traité].
+
+        
+        SONT PRESENTS OU REPRESENTES : 
+        
+        [Lister ici les participants présents, extraits du contenu traité ou des informations de la réunion.]
+
+        Est Absent Excusé :
+        [Lister ici les absents excusés, extraits du contenu traité.]
+
+        Assistent également à la réunion :
+        [Lister ici les personnes assistant à la réunion (invités, secrétariat, etc.), extraits du contenu traité.]
+
+
+
+        Monsieur [Nom du Président si bien cité dans le contenu traité] préside la réunion, en sa qualité de Président du Conseil d'Administration.
 
         Le Président constate que le quorum requis pour la tenue de la réunion est atteint et qu'en conséquence, le Conseil d'Administration peut valablement délibérer.
 
@@ -609,20 +626,13 @@ RC N°45349 TANGER – ICE : 000053443000022
 
         Ensuite, il a rappelé l'ordre du jour comme suit :
 
+
         ORDRE DU JOUR:
         [Lister ici les points de l'ordre du jour numérotés, extraits du contenu traité. Utiliser une liste numérotée comme dans l'exemple.]
 
-        Présents:
-        [Lister ici les participants présents, extraits du contenu traité ou des informations de la réunion.]
+        
 
-        Absents excusés:
-        [Lister ici les absents excusés, extraits du contenu traité.]
-
-        Assistent également à la réunion :
-        [Lister ici les personnes assistant à la réunion (invités, secrétariat, etc.), extraits du contenu traité.]
-
-
-        --- DÉROULÉ ET DÉCISIONS ---
+        DÉROULÉ ET DÉCISIONS
 
         [Pour chaque point de l'ordre du jour listé ci-dessus, fournir un résumé détaillé basé sur le 'Contenu Traité Brut'. Inclure les discussions, les décisions prises et les résolutions. Structurez cela clairement point par point.]
 
@@ -633,10 +643,10 @@ RC N°45349 TANGER – ICE : 000053443000022
         
         [Répéter pour chaque point de l'ordre du jour]
 
-        --- CONCLUSION ---
+        CONCLUSION 
         [Résumer ici les principaux aboutissements de la réunion, les décisions importantes prises, et les éventuelles prochaines étapes ou actions à entreprendre, basé sur le Contenu Traité Brut.]
 
-        --- ACRONYMES ---
+        ACRONYMES 
         [Lister ici les acronymes identifiés et leurs définitions complètes, extraits spécifiquement de la partie Acronymes des résultats PDF, si disponibles.]
 
 
@@ -645,17 +655,27 @@ RC N°45349 TANGER – ICE : 000053443000022
 
         INSTRUCTIONS POUR LA GÉNÉRATION DU PV :
         1. Le texte généré DOIT commencer par l'en-tête standard fourni.
-        2. Le texte généré DOIT suivre la structure définie ci-dessus, incluant les sections "PROCES VERBAL...", "ORDRE DU JOUR", "Présents", "Absents excusés", "Assistent également", "--- DÉROULÉ ET DÉCISIONS ---", "--- CONCLUSION ---", et "--- ACRONYMES ---".
+        2. Le texte généré DOIT suivre la structure définie ci-dessus, incluant les sections "PROCES VERBAL...", "ORDRE DU JOUR", "Présents", "Absents excusés", "Assistent également", " DÉROULÉ ET DÉCISIONS ", " CONCLUSION ", et " ACRONYMES".
         3. Remplir les sections du PV EN UTILISANT STRICTEMENT UNIQUEMENT les informations pertinentes extraites du 'Contenu Traité Brut'.
         4. Pour les sections "Présents", "Absents excusés", "Assistent également", utiliser les informations du 'Contenu Traité Brut' et les comparer/compléter avec la liste des participants fournie dans les 'Meeting Details'.
         5. Pour l'ORDRE DU JOUR, lister les points tels qu'ils apparaissent ou sont déduits du 'Contenu Traité Brut'. Utiliser une liste numérotée (ex: 1., 2., ...).
-        6. Pour le DÉROULÉ ET DÉCISIONS, parcourir l'ordre du jour et résumer les discussions, décisions, et résolutions pour chaque point, en se basant EXCLUSIVEMENT sur le 'Contenu Traité Brut'. Commencer chaque point par le numéro et le titre (ex: [POINT N°] [Titre du point]), suivi des sous-sections (Discussions, Décisions, Résolutions) si l'information est présente dans le contenu.
+        6. Pour le DÉROULÉ ET DÉCISIONS, parcourir l'ordre du jour et résumer les discussions, décisions, et résolutions pour chaque point, en se basant EXCLUSIVEMENT sur le 'Contenu Traité Brut'. Commencer chaque point par le numéro et le titre (ex: [POINT N°] [Titre du point]), suivi des sous-sections (Discussions, Décisions, Résolutions) si l'information est présente dans le contenu et si jamais y'a autre chose d'important a citer c'est a citer .
         7. Pour la CONCLUSION, extraire les éléments de conclusion et les prochaines étapes du 'Contenu Traité Brut'.
-        8. Pour les ACRONYMES, lister UNIQUEMENT ceux qui ont été extraits et fournis dans la section [DOCUMENTS PDF] du 'Contenu Traité Brut'. Si aucun acronyme n'est fourni dans cette section, la section --- ACRONYMES --- doit être vide ou omise (préférer vide avec juste le titre).
+        8. Pour les ACRONYMES, lister UNIQUEMENT ceux qui ont été extraits et fournis dans la section [DOCUMENTS PDF] du 'Contenu Traité Brut'. Si aucun acronyme n'est fourni dans cette section, pas besoin de la citer.
         9. Maintenir un ton professionnel et formel, caractéristique d'un procès-verbal officiel.
-        10. NE PAS inclure la section "Contenu Traité Brut" ou les "INSTRUCTIONS POUR LA GÉNÉRATION DU PV" dans le texte final du PV. Elles sont fournies uniquement pour aider l'IA à générer le texte correct.
-        11. Remplacer les placeholders comme [TYPE DE RÉUNION], [Nom du Président], [Nom du Secrétaire], [Lieu/Type de présence] avec des informations pertinentes si elles peuvent être déduites des 'Meeting Details' ou du 'Contenu Traité Brut'. Sinon, laisser le placeholder ou indiquer 'N/A' si inconnu. Utiliser le format de liste à puces (-) pour les noms dans les sections Présents, Absents, Assistent, comme montré dans l'exemple visuel.
-        """
+        10. NE PAS inclure la section "Contenu Traité Brut" ou les "INSTRUCTIONS POUR LA GÉNÉRATION DU PV" dans le texte final du PV. Elles sont fournies uniquement pour  générer le texte correct.
+        11. Remplacer les placeholders comme [TYPE DE RÉUNION], [Nom du Président], [Nom du Secrétaire], [Lieu/Type de présence] avec des informations pertinentes si elles peuvent être déduites des 'Meeting Details' ou du 'Contenu Traité Brut'. Sinon, ne mets rien. Utiliser le format de liste à puces (-) pour les noms dans les sections Présents, Absents, Assistent.
+        ⚠️ Ne PAS inclure ce contenu brut ni ces instructions dans le texte final.
+
+        ⚠️ Ne pas écrire de “N/A”. Si une information est manquante, ignorer ou laisser vide.
+        ⚠️ Ne pas conserver les crochets [], remplacer par titres clairs.
+        ⚠️ Organise le PV de manière propre et professionnelle avec des titres hiérarchisés.
+        12. ⚠️ Si une section ne contient aucune information pertinente extraite du 'Contenu Traité Brut' (ex. : ACRONYMES, QUESTIONS DIVERSES, CONCLUSION), alors :
+        - Ne pas la générer.
+        - Ne pas insérer de titre vide.
+        - Ne pas écrire de phrase du type “Aucune information disponible”.
+        - Supprimer la section entière du PV final.
+                """
 
         model = genai.GenerativeModel('gemini-2.0-flash')
 
