@@ -113,6 +113,22 @@ export function VideoUploader() {
             </div>
           )}
 
+          {state.meetingData.googleDriveUrl && (
+            <div className="p-2 bg-muted/50 border-t text-sm text-muted-foreground">
+              <p className="font-medium mb-1">Google Drive URL:</p>
+              <div className="flex items-center justify-between">
+                <p className="text-xs truncate flex-1 mr-2">{state.meetingData.googleDriveUrl}</p>
+                <button 
+                  onClick={() => dispatch({ type: "SET_MEETING_DATA", payload: { googleDriveUrl: undefined } })}
+                  className="ml-2 text-red-500 hover:text-red-700 text-xs"
+                  aria-label={`Remove Google Drive URL`}
+                >
+                  &#x2716;
+                </button>
+              </div>
+            </div>
+          )}
+
           <div className="p-4 border-t flex items-center gap-2">
             <Link className="h-5 w-5 text-muted-foreground" />
             <Input

@@ -24,16 +24,21 @@ export default function Home() {
       return
     }
 
-    if ((!state.mediaFiles.video || state.mediaFiles.video.length === 0) && 
-        (!state.mediaFiles.audio || state.mediaFiles.audio.length === 0)) {
+    // Moved validation logic from pv-generator.tsx
+    const hasVideoFiles = state.mediaFiles.video && state.mediaFiles.video.length > 0;
+    const hasAudioFiles = state.mediaFiles.audio && state.mediaFiles.audio.length > 0;
+    const hasGoogleDriveUrl = !!state.meetingData.googleDriveUrl; // Ensure it's a boolean
+
+    if (!hasVideoFiles && !hasAudioFiles && !hasGoogleDriveUrl) {
       toast({
-        title: "Fichiers médias manquants",
-        description: "Veuillez télécharger au moins un fichier vidéo ou audio",
+        title: "Fichiers ou URL médias manquants",
+        description: "Veuillez télécharger au moins un fichier vidéo ou audio, ou fournir une URL Google Drive.",
         variant: "destructive",
       })
       return
     }
 
+    // If validation passes, navigate
     router.push("/pv-generator")
   }
 

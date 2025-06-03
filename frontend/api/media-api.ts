@@ -16,7 +16,10 @@ export async function generatePV(data: {
     date: string;
     time: string;
     location: string;
-    participants: string[];
+    participants: Array<{
+      nom: string;
+      statut: 'Present' | 'Absent Excusé' | 'Assistant';
+    }>;
     type: string;
     googleDriveUrl?: string;
     email: string;

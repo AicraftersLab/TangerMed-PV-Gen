@@ -1,9 +1,39 @@
 from dotenv import load_dotenv
-load_dotenv()
-
 import os
+
+# Force reload of .env file
+load_dotenv(override=True)
+
+# Debug: Print environment variables (without showing full key)
+print("🔑 Checking API key configuration...")
+openai_api_key = os.environ.get("OPENAI_API_KEY")
+google_api_key = os.environ.get("GOOGLE_API_KEY")
+
+if openai_api_key:
+    if openai_api_key.startswith("sk-"):
+        print(f"✅ OpenAI API key found (length: {len(openai_api_key)})")
+        # Show first 4 and last 4 characters of the key
+        masked_key = f"{openai_api_key[:4]}...{openai_api_key[-4:]}" if len(openai_api_key) > 8 else "***"
+        print(f"🔐 OpenAI API Key: {masked_key}")
+    else:
+        print("❌ Invalid OpenAI API key format! Key should start with 'sk-'")
+        print(f"Current key starts with: {openai_api_key[:4]}")
+else:
+    print("❌ No OpenAI API key found in environment variables!")
+    print("Please check your .env file and ensure it contains OPENAI_API_KEY")
+
+if google_api_key:
+    print(f"✅ Google API key found (length: {len(google_api_key)})")
+    masked_key = f"{google_api_key[:4]}...{google_api_key[-4:]}" if len(google_api_key) > 8 else "***"
+    print(f"🔐 Google API Key: {masked_key}")
+else:
+    print("❌ No Google API key found in environment variables!")
+
+import openai
 from google import generativeai as genai
-genai.configure(api_key=os.environ.get("GOOGLE_API_KEY"))
+
+# Configure Google API
+genai.configure(api_key=google_api_key)
 
 from fastapi import FastAPI, File, UploadFile, Form, Depends, HTTPException, status
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -26,6 +56,7 @@ from docx import Document
 from docx.shared import Inches, Pt, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from datetime import datetime
+import threading
 
 app = FastAPI(title="PV Generation API")
 
@@ -179,52 +210,135 @@ def segment_audio(audio_path, segment_length_ms=120000):
     except Exception as e:
         return []
 
-def transcribe_audio_segments(segments, batch_size=10, timeout=30):
-    """Transcribe audio segments using Gemini API."""
+def transcribe_audio_segments(segments, batch_size=8, timeout=30):
+    """Transcribe audio segments using OpenAI's Whisper API with parallel processing."""
     full_transcript = []
-    for batch_start in range(0, len(segments), batch_size):
-        batch_transcript = []
-        for i in range(batch_start, min(batch_start + batch_size, len(segments))):
-            segment_path = segments[i]
-            try:
-                with open(segment_path, "rb") as f:
-                    audio_bytes = f.read()
-                print(f"Segment {i+1} size: {len(audio_bytes)} bytes")
-                model = genai.GenerativeModel('gemini-2.0-flash')
-                
-                # Retry logic inside the segment processing
-                @retry_with_backoff
-                def call_gemini_with_retry():
-                    print(f"Attempting transcription for segment {i+1}...")
-                    response = model.generate_content([
-                        "Transcrivez ce segment audio mot pour mot en français.",
-                        {"mime_type": "audio/mp3", "data": audio_bytes}
-                    ])
-                    print(f"Gemini response status for segment {i+1}: {response.candidates[0].finish_reason if response.candidates else 'No candidates'}")
-                    return response.text
-
-                transcript_text = call_gemini_with_retry()
-                
-                if transcript_text:
-                    batch_transcript.append(transcript_text)
-                else:
-                    print(f"Segment {i+1} returned no text from Gemini.")
-                    batch_transcript.append(f"[Segment {i+1} non transcrit ou vide]")
-                    
-                os.remove(segment_path)
-                    
-            except concurrent.futures.TimeoutError:
-                print(f"Segment {i+1} timed out during transcription.")
-                batch_transcript.append(f"[Segment {i+1} timeout]")
-            except Exception as e:
-                print(f"Error transcribing segment {i+1}: {str(e)}") # Log the specific error
-                batch_transcript.append(f"[Segment {i+1} error: {str(e)}]")
-                # Decide if we should continue with other segments or break
-                # For now, we continue
-            time.sleep(random.uniform(1, 2)) # Add a small delay between segment calls
-            
-        full_transcript.extend(batch_transcript)
+    failed_segments = []
+    active_threads = 0
+    max_active_threads = 0
+    
+    # Initialize OpenAI client with explicit API key check
+    if not openai_api_key or not openai_api_key.startswith("sk-"):
+        raise ValueError("Invalid OpenAI API key. Key should start with 'sk-'")
+    
+    client = openai.OpenAI(api_key=openai_api_key)
+    print("✅ OpenAI client initialized successfully")
+    
+    # Semaphore to limit concurrent API calls
+    api_semaphore = threading.Semaphore(5)  # Allow 5 concurrent API calls
+    
+    def process_segment(segment_info):
+        nonlocal active_threads, max_active_threads
+        i, segment_path = segment_info
+        max_retries = 5
+        initial_retry_delay = 5
+        retry_delay = initial_retry_delay
         
+        active_threads += 1
+        max_active_threads = max(max_active_threads, active_threads)
+        print(f"🔄 Starting segment {i+1} (Active threads: {active_threads})")
+        
+        try:
+            for attempt in range(max_retries):
+                try:
+                    with open(segment_path, "rb") as audio_file:
+                        print(f"📊 Segment {i+1} size: {os.path.getsize(segment_path)} bytes")
+                        
+                        with api_semaphore:
+                            print(f"🎯 Attempting transcription for segment {i+1} (attempt {attempt + 1}/{max_retries})...")
+                            
+                            # Use the pre-initialized client
+                            response = client.audio.transcriptions.create(
+                                model="whisper-1",
+                                file=audio_file,
+                                language="fr",
+                                response_format="text"
+                            )
+                    
+                    if response:
+                        print(f"✅ Successfully transcribed segment {i+1}")
+                        os.remove(segment_path)
+                        return (i, response)
+                    else:
+                        print(f"⚠️ Segment {i+1} returned no text from Whisper (attempt {attempt + 1})")
+                        
+                except Exception as e:
+                    error_msg = str(e)
+                    print(f"❌ Error transcribing segment {i+1} (attempt {attempt + 1}): {error_msg}")
+                    
+                    if "rate_limit_exceeded" in error_msg.lower():
+                        try:
+                            import re
+                            retry_after = re.search(r'retry after (\d+)', error_msg.lower())
+                            if retry_after:
+                                retry_delay = int(retry_after.group(1))
+                            else:
+                                retry_delay = min(120, retry_delay * 1.5)
+                                retry_delay += random.uniform(0, 0.5) * retry_delay
+                        except:
+                            retry_delay = min(120, retry_delay * 1.5)
+                            
+                        print(f"⏳ Rate limit hit, waiting {retry_delay:.2f} seconds before retry...")
+                        time.sleep(retry_delay)
+                        continue
+                        
+                    if "quota_exceeded" in error_msg.lower():
+                        print(f"⚠️ Quota exceeded for segment {i+1}, waiting longer...")
+                        time.sleep(180)
+                        continue
+                        
+                    if attempt == max_retries - 1:
+                        return (i, f"[Segment {i+1} error after {max_retries} attempts: {error_msg}]")
+                    
+                time.sleep(2)
+                
+            return (i, f"[Segment {i+1} failed after {max_retries} attempts]")
+            
+        finally:
+            active_threads -= 1
+            print(f"🏁 Finished segment {i+1} (Active threads: {active_threads})")
+
+    # Create a single ThreadPoolExecutor for all segments
+    max_workers = min(6, len(segments))  # Maximum of 6 concurrent workers
+    print(f"\n🚀 Starting transcription with {max_workers} concurrent workers")
+    
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+        # Submit all segments for processing
+        future_to_segment = {
+            executor.submit(process_segment, (i, segment)): (i, segment)
+            for i, segment in enumerate(segments)
+        }
+        
+        # Process results as they complete
+        results = []
+        for future in concurrent.futures.as_completed(future_to_segment):
+            try:
+                result = future.result()
+                results.append(result)
+                
+                if result[1].startswith("[Segment") and "error" in result[1]:
+                    failed_segments.append(result[0] + 1)
+                    
+            except Exception as e:
+                print(f"💥 Unexpected error processing segment: {str(e)}")
+                segment_info = future_to_segment[future]
+                results.append((segment_info[0], f"[Segment {segment_info[0]+1} unexpected error: {str(e)}]"))
+                failed_segments.append(segment_info[0] + 1)
+    
+    # Sort results by segment index and create final transcript
+    results.sort(key=lambda x: x[0])
+    full_transcript = [text for _, text in results]
+    
+    print(f"\n📊 Parallel Processing Statistics:")
+    print(f"Maximum concurrent threads: {max_active_threads}")
+    
+    if failed_segments:
+        print("\n⚠️ Warning: Some segments failed to transcribe:")
+        print(f"Failed segments: {sorted(failed_segments)}")
+        print("Consider retrying these segments manually or with a different API key")
+    else:
+        print("\n✅ All segments transcribed successfully!")
+    
     return full_transcript
 
 def retry_with_backoff(func, max_retries=5, initial_delay=1):
@@ -258,26 +372,18 @@ def create_word_pv_document(pv_text: str, meeting_info: dict) -> io.BytesIO:
     # Get the first section
     section = doc.sections[0]
 
-    # === En-tête encadré et centré ===
-    # Split the pv_text to extract the header (assuming header ends after the standard block)
-    header_text_lines = []
-    body_text_lines = []
-    is_header = True
-    for line in pv_text.strip().split('\n'):
-        if is_header:
-            header_text_lines.append(line)
-            if line.strip() == "RC N°45349 TANGER – ICE : 000053443000022": # Assuming this is the last line of the fixed header
-                 is_header = False
-        else:
-             body_text_lines.append(line)
-
-    header_text = "\n".join(header_text_lines).strip()
-    body_text = "\n".join(body_text_lines).strip()
+    # Add the standard header
+    standard_header = """TANGER MED PORT AUTHORITY S.A "TMPA"
+SOCIÉTÉ ANONYME À CONSEIL D'ADMINISTRATION
+AU CAPITAL DE 1.704.000.000 DIRHAMS CONVERTIBLES
+SIÈGE SOCIAL : ZONE FRANCHE DE KSAR EL MAJAZ, OUED RMEL,
+COMMUNE ANJRA ROUTE DE FNIDEQ – TANGER
+RC N°45349 TANGER – ICE : 000053443000022"""
 
     # Add a table for the header to apply border
     table = doc.add_table(rows=1, cols=1)
     cell = table.cell(0, 0)
-    cell.text = header_text
+    cell.text = standard_header
 
     # Center the text in the header cell
     for paragraph in cell.paragraphs:
@@ -292,7 +398,7 @@ def create_word_pv_document(pv_text: str, meeting_info: dict) -> io.BytesIO:
     # Add border properties
     tblBorders = OxmlElement('w:tblBorders')
     for border_name in ('top', 'left', 'bottom', 'right', 'insideH', 'insideV'):
-        border_elm = OxmlElement(f'w:{border_name}')
+        border_elm = OxmlElement(f'w:tblBorders')
         border_elm.set(oxml_ns.qn('w:val'), 'single')
         border_elm.set(oxml_ns.qn('w:sz'), '15') # 1.5 points (value is in eighths of a point)
         border_elm.set(oxml_ns.qn('w:space'), '0')
@@ -303,11 +409,146 @@ def create_word_pv_document(pv_text: str, meeting_info: dict) -> io.BytesIO:
     doc.add_paragraph()
 
     # === Ajout du reste du texte généré par Gemini au corps du document ===
-    # Add body text, potentially parsing key sections for basic formatting if needed
-    # For now, let's add the main body text as paragraphs
-    for paragraph_text in body_text.split('\n\n'): # Split by double newline to preserve some paragraph structure
-        if paragraph_text.strip():
-            doc.add_paragraph(paragraph_text.strip())
+    # Parse the generated text to conditionally add sections based on content
+    body_text = pv_text.strip()
+    lines = body_text.split('\n')
+
+    section_titles = [
+        "PROCES VERBAL DE LA RÉUNION", # Special case: first major block
+        "SONT PRESENTS OU REPRESENTES :",
+        "Est Absent Excusé :",
+        "Assistent également à la réunion :",
+        "ORDRE DU JOUR:",
+        "DÉROULÉ ET DÉCISIONS",
+        "CONCLUSION",
+        "ACRONYMES"
+    ]
+
+    # Function to check if a list of lines contains meaningful content
+    def has_meaningful_content(lines_to_check, is_participant_list=False):
+        if is_participant_list:
+             # For participant lists, check specifically for bullet points with text
+             return any(line.strip().startswith('-') and len(line.strip()) > 1 for line in lines_to_check)
+        else:
+             # For other sections, check for any non-empty line that isn't just a bullet point or asterisk
+             return any(line.strip() and not line.strip().startswith('-') and not line.strip().startswith('*') for line in lines_to_check)
+
+    # Function to add a section (title + content) to the document if it has content
+    def add_section_to_doc(title, content_lines):
+        is_participant_list = title in ["SONT PRESENTS OU REPRESENTES :", "Est Absent Excusé :", "Assistent également à la réunion :"]
+
+        # Always include the main PV header section if it's the first major block
+        if title == "PROCES VERBAL DE LA RÉUNION  DU CONSEIL D'ADMINISTRATION ":
+             # Add the lines of the main PV header block with specific formatting for the first three lines
+             for i, line in enumerate(content_lines):
+                 stripped_line = line.strip()
+                 if stripped_line:
+                     paragraph = doc.add_paragraph()
+                     run = paragraph.add_run(stripped_line)
+                     if i < 3: # Apply bold and center to the first three lines
+                         run.bold = True
+                         paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                     # No specific formatting for lines beyond the second one in this block
+
+             doc.add_paragraph() # Add space after this block
+             return
+             
+        # For other sections, check if there is meaningful content before adding the title and content
+        if has_meaningful_content(content_lines, is_participant_list):
+            # Add title as a bold paragraph
+            title_para = doc.add_paragraph()
+            title_run = title_para.add_run(title)
+            title_run.bold = True # Ensure this is always applied when the condition above is met
+
+            # Re-apply bold to be sure (should not be necessary but for robustness)
+            title_run.font.bold = True
+
+            # List of problematic phrases to exclude if they appear as a full line
+            problematic_phrases = [
+                "Le PV a été validé moyennant les corrections à apporter.",
+                "Aucune conclusion formelle enregistrée.", # Fallback phrase for Conclusion
+                "Aucun acronyme n'a été trouvé dans les documents fournis.", # Fallback phrase for Acronymes
+                # Add other phrases here if they appear in future generations
+            ]
+
+            # Add the content lines as paragraphs, skipping problematic phrases
+            for line in content_lines:
+                stripped_line = line.strip()
+                if stripped_line:
+                    # Check if the stripped line is one of the problematic phrases
+                    is_problematic = any(stripped_line == phrase for phrase in problematic_phrases)
+                    
+                    if not is_problematic:
+                        doc.add_paragraph(stripped_line)
+                        
+            doc.add_paragraph() # Add a space after the section
+
+
+    current_section_title = None
+    current_section_lines = []
+
+    # Process lines from the generated text
+    for i, line in enumerate(lines):
+        stripped_line = line.strip()
+        
+        # Check if the current line is a known section title
+        is_title = False
+        for title in section_titles:
+            if stripped_line.startswith(title):
+                is_title = True
+                # If we were processing a previous section, add it to the document now
+                if current_section_title is not None:
+                    # Pass content lines (excluding the title line if it was included in collected lines)
+                    add_section_to_doc(current_section_title, current_section_lines)
+                
+                # Start a new section: set the current title and initialize collected lines
+                current_section_title = title
+                current_section_lines = [] # Start with an empty list for the new section's content
+                # Note: The title line itself is not added to current_section_lines as content
+                break
+
+        # If the line is not a section title, add it to the current section's collected lines
+        if not is_title:
+            # Only add lines if we are currently inside a section (after the first title)
+            if current_section_title is not None:
+                 current_section_lines.append(line)
+            else: # Handle any text before the first recognized section title
+                 # This part might include the main PV header block if it wasn't stripped earlier
+                 # Add these lines directly if they have content, before any titled sections begin.
+                 if stripped_line:
+                      doc.add_paragraph(stripped_line)
+
+    # After the loop, add the last section if there was one being processed
+    if current_section_title is not None:
+        add_section_to_doc(current_section_title, current_section_lines)
+
+    # === Add Fixed Closing Text and Signatures ===
+    doc.add_paragraph("Le Conseil d'Administration confère tous pouvoirs au porteur d'un original, d'une copie ou d'un extrait du présent procès-verbal aux fins d’accomplir toutes les formalités requises par la loi. ") # Add first closing paragraph
+    doc.add_paragraph("Plus rien n'étant à l'ordre du jour et personne ne demandant la parole, le Président remercie l’ensemble des membres du Conseil d’Administration et déclare que la séance est levée. ") # Add second closing paragraph
+    doc.add_paragraph("De tout ce que dessus, il a été établi le présent procès-verbal pour servir et valoir ce que de droit.") # Add third closing paragraph
+    doc.add_paragraph("Etabli en trois (3) exemplaires originaux") # Add fourth closing paragraph
+
+    # Add space before signatures
+    doc.add_paragraph()
+    doc.add_paragraph()
+
+    # Add signature lines (centered)
+    president_para = doc.add_paragraph("Président du Conseil d'Administration")
+    president_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+    # Add space for signature
+    doc.add_paragraph()
+    doc.add_paragraph()
+
+    administrator_para = doc.add_paragraph("Administrateur")
+    administrator_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+    # Add space for signature
+    doc.add_paragraph()
+    doc.add_paragraph()
+
+    secretary_para = doc.add_paragraph("Secrétaire du Conseil d'Administration")
+    secretary_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
     # === Numérotation des pages ===
     # Get the footer
@@ -524,12 +765,22 @@ def process_pdf(pdf_bytes):
 async def require_video_or_audio(
     video: Optional[UploadFile] = File(None),
     audio: List[UploadFile] = File([]),
+    meetingData: str = Form(...),
 ):
-    """Dependency to ensure at least one video or audio file is provided."""
-    if not video and not audio:
+    """Dependency to ensure at least one video or audio file or Google Drive URL is provided."""
+    # Parse meetingData to access googleDriveUrl
+    try:
+        meeting_info = json.loads(meetingData)
+        google_drive_url = meeting_info.get("googleDriveUrl")
+    except json.JSONDecodeError:
+        # If meetingData is invalid, the main endpoint will handle it, 
+        # but for this dependency, we can assume it's not the required media source.
+        google_drive_url = None
+
+    if not video and not audio and not google_drive_url:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="At least one video or audio file is required for PV generation."
+            detail="At least one video or audio file or Google Drive URL is required for PV generation."
         )
 
 # --- PV Text Generation Function ---
@@ -563,7 +814,7 @@ async def generate_pv_text_with_gemini(
             if combined_pdf_summaries:
                  combined_text += "## Résumés :\n" + combined_pdf_summaries + "\n\n"
 
-            # Combine acronyms
+            # Combine acronymsimage.png
             all_acronyms = {}
             for res in pdf_results_list:
                  if res and "acronyms" in res:
@@ -578,107 +829,90 @@ async def generate_pv_text_with_gemini(
         if not combined_text.strip():
             return "Aucun contenu médiatique traité pour générer le PV."
 
-        # Define the standard header text
-        standard_header = """TANGER MED PORT AUTHORITY S.A "TMPA"
-SOCIÉTÉ ANONYME À CONSEIL D'ADMINISTRATION
-AU CAPITAL DE 1.704.000.000 DIRHAMS CONVERTIBLES
-SIÈGE SOCIAL : ZONE FRANCHE DE KSAR EL MAJAZ, OUED RMEL,
-COMMUNE ANJRA ROUTE DE FNIDEQ – TANGER
-RC N°45349 TANGER – ICE : 000053443000022
+        # Construct the prompt for Gemini, based on the desired PV structure
+        # We will build the participant lists first
+        participants = meeting_info.get('participants', [])
+
+        present_participants = [p['nom'] for p in participants if p.get('statut') == 'Present']
+        absent_participants = [p['nom'] for p in participants if p.get('statut') == 'Absent Excusé']
+        assistant_participants = [p['nom'] for p in participants if p.get('statut') == 'Assistant']
+
+        # Format the lists for the prompt (using bullet points)
+        present_participants_list = "\n".join([f"- {name}" for name in present_participants]) if present_participants else ""
+        absent_participants_list = "\n".join([f"- {name}" for name in absent_participants]) if absent_participants else ""
+        assistant_participants_list = "\n".join([f"- {name}" for name in assistant_participants]) if assistant_participants else ""
+
+        # Construct the prompt for Gemini, combining new participant logic with old prompt style
+        full_prompt_content = f"""PROCES VERBAL DE LA RÉUNION  DU CONSEIL D'ADMINISTRATION  
+DU {meeting_info.get('date', 'N/A')}
+À {meeting_info.get('time', 'N/A')} heures.
+
+En  {meeting_info.get('year', 'N/A')} à écrire en toutes lettres pour donner comme cet example : L'An Deux Mille Vingt-Cinq, ,  
+le {meeting_info.get('date', 'N/A')} à écrire en toutes lettres pour donner comme cet example : Le Dix Février,  
+à {meeting_info.get('time', 'N/A')} à écrire en toutes lettres pour donner comme cet example : À 15 heures.  
+
+Les membres du Conseil d'Administration de Tanger Med Port Authority S.A, par abréviation,
+" TMPA " se sont réunis en Conseil d'Administration en présentiel au bureau de {meeting_info.get('location', '')} et par visioconférence conformément aux dispositions réglementaires.
+
+
+SONT PRESENTS OU REPRESENTES :
+{present_participants_list}
+
+Est Absent Excusé :
+{absent_participants_list}
+
+Assistent également à la réunion :
+{assistant_participants_list}
+
+
+ORDRE DU JOUR:
+[Lister ici les points de l'ordre du jour numérotés, extraits du contenu traité. Utiliser une liste numérotée comme dans l'exemple.]
+
+
+DÉROULÉ ET DÉCISIONS
+
+[Pour chaque point de l'ordre du jour listé ci-dessus, fournir un résumé détaillé basé sur le 'Contenu Traité Brut'. Inclure les discussions, les décisions prises et les résolutions. Structurez cela clairement point par point.]
+
+[POINT N°] [Titre du point]
+[Résumé des discussions et points clés abordés, basé sur le Contenu Traité Brut]
+Décisions : [Décisions spécifiques prises pour ce point, basées sur le Contenu Traité Brut]
+Résolutions : [Résolutions spécifiques adoptées pour ce point, basées sur le Contenu Traité Brut]
+
+[Répéter pour chaque point de l'ordre du jour]
+
+CONCLUSION
+[Résumer ici les principaux aboutissements de la réunion, les décisions importantes prises, et les éventuelles prochaines étapes ou actions à entreprendre, basé sur le Contenu Traité Brut.]
+
+ACRONYMES
+[Lister ici les acronymes identifiés et leurs définitions complètes, extraits spécifiquement de la partie Acronymes des résultats PDF, si disponibles.]
+
+
+Contenu Traité Brut (pour référence interne uniquement, ne pas inclure ceci dans le PV final):
+{combined_text}
+
+INSTRUCTIONS POUR LA GÉNÉRATION DU PV :
+1. Le texte généré DOIT suivre la structure définie ci-dessus, incluant les sections "PROCES VERBAL...", "ORDRE DU JOUR", "Présents", "Absents excusés", "Assistent également", " DÉROULÉ ET DÉCISIONS ", " CONCLUSION ", et " ACRONYMES".
+2. Remplir les sections du PV EN UTILISANT STRICTEMENT UNIQUEMENT les informations pertinentes extraites du 'Contenu Traité Brut'.
+3. Pour les sections "Présents", "Absents excusés", "Assistent également", utiliser les listes de participants fournies directement dans le prompt , si l;une est vide supprime la du Pv genere.
+4. Pour l'ORDRE DU JOUR, lister les points tels qu'ils apparaissent ou sont déduits du 'Contenu Traité Brut'. Utiliser une liste numérotée (ex: 1., 2., ...).
+5. Pour le DÉROULÉ ET DÉCISIONS, parcourir l'ordre du jour et résumer les discussions, décisions, et résolutions pour chaque point, en se basant EXCLUSIVEMENT sur le 'Contenu Traité Brut'. Commencer chaque point par le numéro et le titre (ex: [POINT N°] [Titre du point]), suivi des sous-sections (Discussions, Décisions, Résolutions) si l'information est présente dans le contenu et si jamais y'a autre chose d'important a citer c'est a citer .
+6. Pour la CONCLUSION, extraire les éléments de conclusion et les prochaines étapes du 'Contenu Traité Brut'.
+7. Pour les ACRONYMES, lister UNIQUEMENT ceux qui ont été extraits et fournis dans la section [DOCUMENTS PDF] du 'Contenu Traité Brut'. Si aucun acronyme n'est fourni dans cette section, pas besoin de la citer.
+8. Maintenir un ton professionnel et formel, caractéristique d'un procès-verbal officiel.
+9. NE PAS inclure la section "Contenu Traité Brut" ou les "INSTRUCTIONS POUR LA GÉNÉRATION DU PV" dans le texte final du PV. Elles sont fournies uniquement pour  générer le texte correct.
+
+⚠️ Ne pas écrire de "N/A". Si une information est manquante, ignorer ou laisser vide.
+⚠️ Ne pas conserver les crochets [], remplacer par titres clairs.
+⚠️ Organise le PV de manière propre et professionnelle avec des titres hiérarchisés.
+10. ⚠️ Si une section ne contient aucune information pertinente extraite du 'Contenu Traité Brut' (ex. : ACRONYMES, QUESTIONS DIVERSES, CONCLUSION), alors :
+- Ne pas la générer.
+- Ne pas insérer de titre vide.
+- Ne pas écrire de phrase du type "Aucune information disponible".
+- Supprimer la section entière du PV final.
+11. ⚠️ Si un placeholder comme  [Titre du point], etc. ne peut pas être remplacé par une donnée réelle du contenu traité, alors :
+- Supprimer toute la phrase contenant ce placeholder.
+-  Ne pas afficher le placeholder dans le texte final.
 """
-
-        # Construct the prompt for Gemini, based on the desired PV structure and header
-        prompt = f"""{standard_header}
-
-        PROCES VERBAL DE LA RÉUNION [TYPE DE RÉUNION, e.g., DU CONSEIL D'ADMINISTRATION]
-        DU {meeting_info.get('date', 'N/A')}
-        À {meeting_info.get('time', 'N/A')} heures.
-
-        En  {meeting_info.get('year', 'N/A')} à écrire en toutes lettres pour donner comme cet example : L’An Deux Mille Vingt-Cinq, ,  
-        le {meeting_info.get('date', 'N/A')} à écrire en toutes lettres pour donner comme cet example : Le Dix Février,  
-        à {meeting_info.get('time', 'N/A')} à écrire en toutes lettres pour donner comme cet example : À 15 heures.  
-
-        Les membres du Conseil d’Administration de Tanger Med Port Authority S.A, par abréviation, 
-        « TMPA » se sont réunis en Conseil d’Administration en présentiel au bureau de TMSA à 
-        Rabat et par visioconférence conformément aux dispositions réglementaires, sur convocation 
-        et sous la présidence de [Nom du Président si bien cité dans le contenu traité].
-
-        
-        SONT PRESENTS OU REPRESENTES : 
-        
-        [Lister ici les participants présents, extraits du contenu traité ou des informations de la réunion.]
-
-        Est Absent Excusé :
-        [Lister ici les absents excusés, extraits du contenu traité.]
-
-        Assistent également à la réunion :
-        [Lister ici les personnes assistant à la réunion (invités, secrétariat, etc.), extraits du contenu traité.]
-
-
-
-        Monsieur [Nom du Président si bien cité dans le contenu traité] préside la réunion, en sa qualité de Président du Conseil d'Administration.
-
-        Le Président constate que le quorum requis pour la tenue de la réunion est atteint et qu'en conséquence, le Conseil d'Administration peut valablement délibérer.
-
-        Le Secrétariat de la réunion du Conseil d'Administration est assuré par Monsieur [Nom du Secrétaire].
-
-        Ouvrant la séance, le Président du Conseil d'Administration a tout d'abord remercié les membres du Conseil de leur présence.
-
-        Ensuite, il a rappelé l'ordre du jour comme suit :
-
-
-        ORDRE DU JOUR:
-        [Lister ici les points de l'ordre du jour numérotés, extraits du contenu traité. Utiliser une liste numérotée comme dans l'exemple.]
-
-        
-
-        DÉROULÉ ET DÉCISIONS
-
-        [Pour chaque point de l'ordre du jour listé ci-dessus, fournir un résumé détaillé basé sur le 'Contenu Traité Brut'. Inclure les discussions, les décisions prises et les résolutions. Structurez cela clairement point par point.]
-
-        [POINT N°] [Titre du point]
-        [Résumé des discussions et points clés abordés, basé sur le Contenu Traité Brut]
-        Décisions : [Décisions spécifiques prises pour ce point, basées sur le Contenu Traité Brut]
-        Résolutions : [Résolutions spécifiques adoptées pour ce point, basées sur le Contenu Traité Brut]
-        
-        [Répéter pour chaque point de l'ordre du jour]
-
-        CONCLUSION 
-        [Résumer ici les principaux aboutissements de la réunion, les décisions importantes prises, et les éventuelles prochaines étapes ou actions à entreprendre, basé sur le Contenu Traité Brut.]
-
-        ACRONYMES 
-        [Lister ici les acronymes identifiés et leurs définitions complètes, extraits spécifiquement de la partie Acronymes des résultats PDF, si disponibles.]
-
-
-        Contenu Traité Brut (pour référence interne uniquement, ne pas inclure ceci dans le PV final):
-        {combined_text}
-
-        INSTRUCTIONS POUR LA GÉNÉRATION DU PV :
-        1. Le texte généré DOIT commencer par l'en-tête standard fourni.
-        2. Le texte généré DOIT suivre la structure définie ci-dessus, incluant les sections "PROCES VERBAL...", "ORDRE DU JOUR", "Présents", "Absents excusés", "Assistent également", " DÉROULÉ ET DÉCISIONS ", " CONCLUSION ", et " ACRONYMES".
-        3. Remplir les sections du PV EN UTILISANT STRICTEMENT UNIQUEMENT les informations pertinentes extraites du 'Contenu Traité Brut'.
-        4. Pour les sections "Présents", "Absents excusés", "Assistent également", utiliser les informations du 'Contenu Traité Brut' et les comparer/compléter avec la liste des participants fournie dans les 'Meeting Details'.
-        5. Pour l'ORDRE DU JOUR, lister les points tels qu'ils apparaissent ou sont déduits du 'Contenu Traité Brut'. Utiliser une liste numérotée (ex: 1., 2., ...).
-        6. Pour le DÉROULÉ ET DÉCISIONS, parcourir l'ordre du jour et résumer les discussions, décisions, et résolutions pour chaque point, en se basant EXCLUSIVEMENT sur le 'Contenu Traité Brut'. Commencer chaque point par le numéro et le titre (ex: [POINT N°] [Titre du point]), suivi des sous-sections (Discussions, Décisions, Résolutions) si l'information est présente dans le contenu et si jamais y'a autre chose d'important a citer c'est a citer .
-        7. Pour la CONCLUSION, extraire les éléments de conclusion et les prochaines étapes du 'Contenu Traité Brut'.
-        8. Pour les ACRONYMES, lister UNIQUEMENT ceux qui ont été extraits et fournis dans la section [DOCUMENTS PDF] du 'Contenu Traité Brut'. Si aucun acronyme n'est fourni dans cette section, pas besoin de la citer.
-        9. Maintenir un ton professionnel et formel, caractéristique d'un procès-verbal officiel.
-        10. NE PAS inclure la section "Contenu Traité Brut" ou les "INSTRUCTIONS POUR LA GÉNÉRATION DU PV" dans le texte final du PV. Elles sont fournies uniquement pour  générer le texte correct.
-        11. Remplacer les placeholders comme [TYPE DE RÉUNION], [Nom du Président], [Nom du Secrétaire], [Lieu/Type de présence] avec des informations pertinentes si elles peuvent être déduites des 'Meeting Details' ou du 'Contenu Traité Brut'. Sinon, ne mets rien. Utiliser le format de liste à puces (-) pour les noms dans les sections Présents, Absents, Assistent.
-        ⚠️ Ne PAS inclure ce contenu brut ni ces instructions dans le texte final.
-
-        ⚠️ Ne pas écrire de “N/A”. Si une information est manquante, ignorer ou laisser vide.
-        ⚠️ Ne pas conserver les crochets [], remplacer par titres clairs.
-        ⚠️ Organise le PV de manière propre et professionnelle avec des titres hiérarchisés.
-        12. ⚠️ Si une section ne contient aucune information pertinente extraite du 'Contenu Traité Brut' (ex. : ACRONYMES, QUESTIONS DIVERSES, CONCLUSION), alors :
-        - Ne pas la générer.
-        - Ne pas insérer de titre vide.
-        - Ne pas écrire de phrase du type “Aucune information disponible”.
-        - Supprimer la section entière du PV final.
-        13. ⚠️ Si un placeholder comme [Nom du Président], [Nom du Secrétaire], [Titre du point], etc. ne peut pas être remplacé par une donnée réelle du contenu traité, alors :
-        - Supprimer toute la phrase contenant ce placeholder.
-        -  Ne pas afficher le placeholder dans le texte final.
-                """
 
         model = genai.GenerativeModel('gemini-2.0-flash')
 
@@ -686,7 +920,7 @@ RC N°45349 TANGER – ICE : 000053443000022
         async def call_gemini_for_pv():
             print("Attempting Gemini call for PV generation...") # Debug print
             response = model.generate_content(
-                [{"role": "user", "parts": [prompt]}], # Pass prompt as parts in a user role
+                [{"role": "user", "parts": [full_prompt_content]}],  # Pass prompt as parts in a user role
                 request_options={"timeout": 180} # Increased timeout
             )
             print(f"Gemini PV generation response status: {response.candidates[0].finish_reason if response.candidates else 'No candidates'}") # Debug print
@@ -694,23 +928,45 @@ RC N°45349 TANGER – ICE : 000053443000022
 
         generated_text = await call_gemini_for_pv()
 
-        if not generated_text.strip():
+        if not generated_text or not generated_text.strip():
             print("⚠️ Gemini generated empty PV text.") # Debug print
             return "[Échec de la génération de texte de PV par IA ou texte vide]"
+
+        # Post-processing: Remove Raw Processed Content and Instructions sections by splitting
+        raw_content_tag = "Contenu Traité Brut (pour référence interne uniquement, ne pas inclure ceci dans le PV final):"
+        instructions_tag = "INSTRUCTIONS POUR LA GÉNÉRATION DU PV :"
+
+        if raw_content_tag in generated_text:
+            generated_text = generated_text.split(raw_content_tag, 1)[0].strip()
+
+        if instructions_tag in generated_text:
+             generated_text = generated_text.split(instructions_tag, 1)[0].strip()
 
         # Basic post-processing (remove common markdown formatting and any remaining instructions)
         generated_text = generated_text.replace('**', '')
         generated_text = generated_text.replace('*', '')
-        
-        # Remove the Raw Processed Content and Instructions sections if Gemini failed to exclude them
-        raw_content_tag = "Contenu Traité Brut (pour référence interne uniquement, ne pas inclure ceci dans le PV final):"
-        instructions_tag = "INSTRUCTIONS POUR LA GÉNÉRATION DU PV :"
-        
-        if raw_content_tag in generated_text:
-            generated_text = generated_text.split(raw_content_tag, 1)[0].strip()
-            
-        if instructions_tag in generated_text:
-             generated_text = generated_text.split(instructions_tag, 1)[0].strip()
+
+        # Clean up multiple newlines and leading/trailing whitespace
+        generated_text = re.sub(r'\n{2,}', '\n\n', generated_text).strip()
+
+        # Remove any remaining specific instruction placeholders that weren't handled by the split
+        # Be cautious with broad regex; target specific patterns if possible.
+        instruction_placeholders_regex = [
+             r'\[Lister ici les points de l\'ordre du jour numérotés, extraits du contenu traité\. Utiliser une liste numérotée comme dans l\'exemple\.\]',
+             r'\[Pour chaque point de l\'ordre du jour listé ci-dessus, fournir un résumé détaillé basé sur le \'Contenu Traité Brut\'\. Inclure les discussions, les décisions prises et les résolutions\. Structurez cela clairement point par point\.\]',
+             r'\[POINT N°\] \[Titre du point\]\n\[Résumé des discussions et points clés abordés, basé sur le Contenu Traité Brut\]\nDécisions : \[Décisions spécifiques prises pour ce point, basées sur le Contenu Traité Brut\]\nRésolutions : \[Résolutions spécifiques adoptées pour ce point, basées sur le Contenu Traité Brut\]\n\[Répéter pour chaque point de l\'ordre du jour\]',
+             r'\[Résumer ici les principaux aboutissements de la réunion, les décisions importantes prises, et les éventuelles prochaines étapes ou actions à entreprendre, basé sur le Contenu Traité Brut\.\]',
+             r'\[Lister ici les acronymes identifiés et leurs définitions complètes, extraits spécifiquement de la partie Acronymes des résultats PDF, si disponibles\.\]',
+             r'\[Lister ici les participants présents, extraits du contenu traité ou des informations de la réunion\.\]',
+             r'\[Lister ici les absents excusés, extraits du contenu traité\.\]',
+             r'\[Lister ici les personnes assistant à la réunion \(invités, secrétariat, etc\.\), extraits du contenu traité\.\]',
+        ]
+
+        for regex_pattern in instruction_placeholders_regex:
+             generated_text = re.sub(regex_pattern, '', generated_text, flags=re.DOTALL | re.IGNORECASE).strip()
+
+        # Clean up again after removing placeholders
+        generated_text = re.sub(r'\n{2,}', '\n\n', generated_text).strip()
 
         print("PV text generation completed by Gemini.") # Debug print
         return generated_text.strip()

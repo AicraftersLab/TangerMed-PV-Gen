@@ -17,18 +17,27 @@ interface MeetingFormData {
   date: string
   time: string
   location: string
-  participants: string[]
+  participants: Array<{
+    nom: string
+    statut: 'Present' | 'Absent Excusé' | 'Assistant'
+  }>
   email: string
 }
 
 export function MeetingForm() {
   const { state, dispatch } = useApp()
   const { toast } = useToast()
-  const [participants, setParticipants] = useState<string[]>(state.meetingData.participants)
+  const [participants, setParticipants] = useState<Array<{nom: string, statut: 'Present' | 'Absent Excusé' | 'Assistant'}>>(
+    state.meetingData.participants.map(p => typeof p === 'string' ? { nom: p, statut: 'Present' } : p)
+  )
   const [newParticipant, setNewParticipant] = useState("")
+  const [newParticipantStatus, setNewParticipantStatus] = useState<'Present' | 'Absent Excusé' | 'Assistant'>('Present')
 
   const { register, handleSubmit, setValue, watch } = useForm<MeetingFormData>({
-    defaultValues: state.meetingData,
+    defaultValues: {
+      ...state.meetingData,
+      participants: participants
+    },
   })
 
   const onSubmit = (data: MeetingFormData) => {
@@ -44,8 +53,8 @@ export function MeetingForm() {
   }
 
   const addParticipant = () => {
-    if (newParticipant.trim() && !participants.includes(newParticipant.trim())) {
-      const updated = [...participants, newParticipant.trim()]
+    if (newParticipant.trim() && !participants.some(p => p.nom === newParticipant.trim())) {
+      const updated = [...participants, { nom: newParticipant.trim(), statut: newParticipantStatus }]
       setParticipants(updated)
       setNewParticipant("")
       dispatch({
@@ -55,8 +64,19 @@ export function MeetingForm() {
     }
   }
 
-  const removeParticipant = (participant: string) => {
-    const updated = participants.filter((p) => p !== participant)
+  const removeParticipant = (participant: { nom: string, statut: 'Present' | 'Absent Excusé' | 'Assistant' }) => {
+    const updated = participants.filter((p) => p.nom !== participant.nom)
+    setParticipants(updated)
+    dispatch({
+      type: "SET_MEETING_DATA",
+      payload: { participants: updated },
+    })
+  }
+
+  const updateParticipantStatus = (participant: { nom: string, statut: 'Present' | 'Absent Excusé' | 'Assistant' }, newStatus: 'Present' | 'Absent Excusé' | 'Assistant') => {
+    const updated = participants.map(p => 
+      p.nom === participant.nom ? { ...p, statut: newStatus } : p
+    )
     setParticipants(updated)
     dispatch({
       type: "SET_MEETING_DATA",
@@ -117,16 +137,48 @@ export function MeetingForm() {
                 placeholder="Add participant"
                 onKeyPress={(e) => e.key === "Enter" && (e.preventDefault(), addParticipant())}
               />
+              <Select
+                value={newParticipantStatus}
+                onValueChange={(value: 'Present' | 'Absent Excusé' | 'Assistant') => setNewParticipantStatus(value)}
+              >
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Select status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Present">Present</SelectItem>
+                  <SelectItem value="Absent Excusé">Absent Excusé</SelectItem>
+                  <SelectItem value="Assistant">Assistant</SelectItem>
+                </SelectContent>
+              </Select>
               <Button type="button" onClick={addParticipant} size="sm">
                 <Plus className="h-4 w-4" />
               </Button>
             </div>
-            <div className="flex flex-wrap gap-2">
+            <div className="space-y-2">
               {participants.map((participant) => (
-                <Badge key={participant} variant="secondary" className="flex items-center gap-1">
-                  {participant}
-                  <X className="h-3 w-3 cursor-pointer" onClick={() => removeParticipant(participant)} />
-                </Badge>
+                <div key={participant.nom} className="flex items-center gap-2 justify-between">
+                  <span className="font-medium flex-1">{participant.nom}</span>
+                  <div className="flex items-center gap-2">
+                    <Select
+                      value={participant.statut}
+                      onValueChange={(value: 'Present' | 'Absent Excusé' | 'Assistant') => 
+                        updateParticipantStatus(participant, value)
+                      }
+                    >
+                      <SelectTrigger className="w-[140px]">
+                        <SelectValue placeholder="Select status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Present">Present</SelectItem>
+                        <SelectItem value="Absent Excusé">Absent Excusé</SelectItem>
+                        <SelectItem value="Assistant">Assistant</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Button variant="ghost" size="sm" onClick={() => removeParticipant(participant)} className="h-8 w-8 p-0">
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
               ))}
             </div>
           </div>

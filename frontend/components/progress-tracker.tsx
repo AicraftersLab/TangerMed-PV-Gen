@@ -12,7 +12,7 @@ export function ProgressTracker() {
     {
       icon: Video,
       label: "Video Files",
-      count: state.mediaFiles.video?.length || 0,
+      count: (state.mediaFiles.video && state.mediaFiles.video.length > 0) || state.meetingData.googleDriveUrl ? 1 : 0,
       color: "text-blue-500",
     },
     {

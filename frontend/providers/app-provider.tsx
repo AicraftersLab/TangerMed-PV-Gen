@@ -9,7 +9,10 @@ interface MeetingData {
   date: string
   time: string
   location: string
-  participants: string[]
+  participants: Array<{
+    nom: string
+    statut: 'Present' | 'Absent Excusé' | 'Assistant'
+  }>
   type: string
   googleDriveUrl?: string
   email: string
@@ -43,7 +46,10 @@ type AppAction =
       date?: string;
       time?: string;
       location?: string;
-      participants?: string[];
+      participants?: Array<{
+        nom: string;
+        statut: 'Present' | 'Absent Excusé' | 'Assistant';
+      }>;
       type?: string;
       googleDriveUrl?: string;
       email?: string;
